@@ -54,7 +54,10 @@ tile <- unlist(lapply(geos::geos_strtree_query(tree, wk::xy(xy[,1, drop = TRUE],
 
 
 ## now we can crop the dataset to each tile and look up the appropriate points
-extract_pt <- function(dsn, bbox, pts) {
+extract_pt <- function(x) {
+  dsn <- x$dsn[1]
+  bbox <- x$bbox[[1]]
+  pts <- cbind(x$X, x$Y)
   tf <- tempfile(fileext = ".vrt")
   #bbbbb <- paste0(bbox, collapse = ",")
   #dsn <- glue::glue("vrt://{dsn}?projwin={bbbbb}")
@@ -62,14 +65,29 @@ extract_pt <- function(dsn, bbox, pts) {
   pixel_extract(new(GDALRaster, dsn), pts)
 }
 
+
 v <- vector("list", length(unique(tile)))
 for (i in seq_along(v)) {
-  v[[i]] <- extract_pt(dsn, bb[unique(tile)[i],, drop = TRUE], xy[tile == unique(tile)[i], , drop = FALSE])
+  tib <- tibble::tibble(dsn = dsn, X = xy[tile == unique(tile)[i],1 , drop = TRUE],
+                        Y = xy[tile == unique(tile)[i],2 , drop = TRUE],
+                        bbox = list(bb[unique(tile)[i],, drop = TRUE]))
+  v[[i]] <- tib
 }
+
+options(parallelly.fork.enable = TRUE, future.rng.onMisuse = "ignore")
+library(furrr); plan(multicore)
+
+v <- future_map(v, extract_pt)
+
+
+# for (i in seq_along(v)) {
+#   v[[i]] <- extract_pt(dsn, bb[unique(tile)[i],, drop = TRUE], xy[tile == unique(tile)[i], , drop = FALSE])
+# }
+
 
 
 ds$close()
 
 track$elev <- unlist(v)
-nanoparquet:write_parquet(track, "longlat_points_dem.parquet")
+nanoparquet::write_parquet(track, "longlat_points_dem.parquet")
 }
