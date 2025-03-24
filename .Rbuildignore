@@ -1,0 +1,4 @@
+^data-raw$
+^extractdem\.Rproj$
+^\.Rproj\.user$
+^\.github$
