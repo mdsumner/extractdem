@@ -1,5 +1,5 @@
 extracted <- file.exists("longlat_points_dem.parquet")
-
+Sys.setenv("AWS_NO_SIGN_REQUEST" = "YES")
 if (!extracted) {
   track <- nanoparquet::read_parquet("longlat_points.parquet")
 library(xml2)
