@@ -1,7 +1,7 @@
 extracted <- file.exists("longlat_points_dem.parquet")
 
 if (!extracted) {
-  track <- arrow::read_parquet("longlat_points.parquet")
+  track <- nanoparquet::read_parquet("longlat_points.parquet")
 library(xml2)
 library(gdalraster)
 dsn <- "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/main/REMA-2m_dem_ovr.vrt"
@@ -71,5 +71,5 @@ for (i in seq_along(v)) {
 ds$close()
 
 track$elev <- unlist(v)
-arrrow::write_parquet(track, "longlat_points_dem.parquet")
+nanoparquet:write_parquet(track, "longlat_points_dem.parquet")
 }
