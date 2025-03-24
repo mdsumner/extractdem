@@ -46,11 +46,12 @@ jobs:
       - name: Get DEM values
         run: Rscript -e 'source("R/run_extract.R", echo = TRUE)'
 
-      - name: Commit
-        run: |
-          git config --global user.name 'Michael Sumner'
-          git config --global user.email 'mdsumner@gmail.com'
-          git config --global --add safe.directory '*'
-          git add .
-          git commit -m 'refreshing data' || echo "No changes to commit"
-          git push || echo "No changes to commit"
+      - uses: stefanzweifel/git-auto-commit-action@v5
+      # - name: Commit
+      #   run: |
+      #     git config --global user.name 'Michael Sumner'
+      #     git config --global user.email 'mdsumner@gmail.com'
+      #     git config --global --add safe.directory '*'
+      #     git add .
+      #     git commit -m 'refreshing data' || echo "No changes to commit"
+      #     git push || echo "No changes to commit"
