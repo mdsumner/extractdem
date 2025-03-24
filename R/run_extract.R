@@ -58,7 +58,7 @@ extract_pt <- function(dsn, bbox, pts) {
   tf <- tempfile(fileext = ".vrt")
   #bbbbb <- paste0(bbox, collapse = ",")
   #dsn <- glue::glue("vrt://{dsn}?projwin={bbbbb}")
-  translate(dsn, tf, cl_arg = c("-projwin", unname(bbox)), quiet = TRUE)
+  translate(dsn, tf, cl_arg = c("-projwin", unname(bbox[c(1, 4, 3, 2)])), quiet = TRUE)
   pixel_extract(new(GDALRaster, dsn), pts)
 }
 
