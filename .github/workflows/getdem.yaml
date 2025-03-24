@@ -9,9 +9,13 @@ on:
 name: get-data
 
 jobs:
-  get-underway:
+  get-dem:
     runs-on: ${{ matrix.config.os }}
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the
+      # added or changed files to the repository.
+      contents: write
 
     strategy:
       fail-fast: false
