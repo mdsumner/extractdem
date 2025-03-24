@@ -5,6 +5,7 @@ if (!extracted) {
 library(xml2)
 library(gdalraster)
 dsn <- "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/main/REMA-2m_dem_ovr.vrt"
+##dsn <-  "/vsicurl/https://opentopography.s3.sdsc.edu/raster/COP30/COP30_hh.vrt"
 url <- gsub("/vsicurl/", "", dsn)
 xml <- read_xml(url)
 dst <- xml |> xml_find_all(".//DstRect")
@@ -62,11 +63,12 @@ extract_pt <- function(x) {
   #bbbbb <- paste0(bbox, collapse = ",")
   #dsn <- glue::glue("vrt://{dsn}?projwin={bbbbb}")
   translate(dsn, tf, cl_arg = c("-projwin", unname(bbox[c(1, 4, 3, 2)])), quiet = TRUE)
-  pixel_extract(new(GDALRaster, dsn), pts)
+  pixel_extract(new(GDALRaster, tf), pts)
 }
 
 
 v <- vector("list", length(unique(tile)))
+## create the payload
 for (i in seq_along(v)) {
   tib <- tibble::tibble(dsn = dsn, X = xy[tile == unique(tile)[i],1 , drop = TRUE],
                         Y = xy[tile == unique(tile)[i],2 , drop = TRUE],
@@ -77,7 +79,7 @@ for (i in seq_along(v)) {
 options(parallelly.fork.enable = TRUE, future.rng.onMisuse = "ignore")
 library(furrr); plan(multicore)
 
-v <- future_map(v, extract_pt)
+v1 <- future_map(v, extract_pt)
 
 
 # for (i in seq_along(v)) {
@@ -88,6 +90,6 @@ v <- future_map(v, extract_pt)
 
 ds$close()
 
-track$elev <- unlist(v)
+track$elev <- unlist(v1)
 nanoparquet::write_parquet(track, "longlat_points_dem.parquet")
 }
