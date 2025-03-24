@@ -1,4 +1,4 @@
-extracted <- !file.exists("longlat_points_dem.parquet")
+extracted <- file.exists("longlat_points_dem.parquet")
 
 if (!extracted) {
   track <- arrow::read_parquet("longlat_points.parquet")
@@ -14,11 +14,12 @@ yOff <- as.integer(xml_attr(dst, "yOff"))
 xSize <- as.integer(dst |> xml_attr("xSize"))
 ySize <- as.integer(dst |> xml_attr("ySize"))
 
-ds <- new(GDALRaster, dsn)
+ds <- try(new(GDALRaster, dsn))
+if (inherits(ds, "try-error"))  stop("cannot open dataset")
 dm <- ds$dim()[1:2]
 bbox <- ds$bbox()
 
-ds$close()
+xy <- gdalraster::transform_xy(cbind(track$lon, track$lat ), srs_to = ds$getProjectionRef(), srs_from = "EPSG:4326")
 
 x_from_col <- function(dimension, bbox, col) {
   col[col < 1] <- NA
@@ -34,8 +35,8 @@ y_from_row <- function(dimension, bbox, row) {
 }
 xmin <- x_from_col(dm, bbox, xOff + 1)
 xmax <- x_from_col(dm, bbox, xOff + xSize)
-ymin <- y_from_row(dm, bbox, yOff + 1)
-ymax <- y_from_row(dm, bbox, yOff + ySize)
+ymax <- y_from_row(dm, bbox, yOff + 1)
+ymin <- y_from_row(dm, bbox, yOff + ySize)
 
 ## all bbox of ComplexSource in VRT:
 bb <- cbind(xmin = xmin,  ymin = ymin, xmax = xmax, ymax = ymax)
@@ -45,10 +46,9 @@ rc <- wk::rct(bb[,1], bb[,2], bb[,3], bb[,4])
 #plot(rc)
 tree <- geos::geos_strtree(rc)
 
-xy <- gdalraster::transform_xy(cbind(track$lon, track$lat ), srs_to = ds$getProjectionRef(), srs_from = "EPSG:4326")
 
 ## tile for every point
-tile <- unlist(lapply(geos::geos_strtree_query(tree, wk::xy(track[,1], track[,2])), "[", 1L))   ## make sure only one tile per point
+tile <- unlist(lapply(geos::geos_strtree_query(tree, wk::xy(xy[,1, drop = TRUE], xy[,2, drop = TRUE])), "[", 1L))   ## make sure only one tile per point
 # plot(rc)
 # plot(rc[unique(tile)], add = TRUE, col = hcl.colors(length(unique(tile))))
 
@@ -56,14 +56,20 @@ tile <- unlist(lapply(geos::geos_strtree_query(tree, wk::xy(track[,1], track[,2]
 ## now we can crop the dataset to each tile and look up the appropriate points
 extract_pt <- function(dsn, bbox, pts) {
   tf <- tempfile(fileext = ".vrt")
-  translate(dsn, tf, cl_arg = c("-projwin", bbox), quiet = TRUE)
-  pixel_extract(new(GDALRaster, tf), pts)
+  #bbbbb <- paste0(bbox, collapse = ",")
+  #dsn <- glue::glue("vrt://{dsn}?projwin={bbbbb}")
+  translate(dsn, tf, cl_arg = c("-projwin", unname(bbox)), quiet = TRUE)
+  pixel_extract(new(GDALRaster, dsn), pts)
 }
 
 v <- vector("list", length(unique(tile)))
 for (i in seq_along(v)) {
-  v[[i]] <- extract_pt(dsn, bb[unique(tile)[i], ], track[tile == unique(tile)[i], , drop = FALSE])
+  v[[i]] <- extract_pt(dsn, bb[unique(tile)[i],, drop = TRUE], xy[tile == unique(tile)[i], , drop = FALSE])
 }
+
+
+ds$close()
 
 track$elev <- unlist(v)
 arrrow::write_parquet(track, "longlat_points_dem.parquet")
+}

@@ -5,4 +5,4 @@ track <- cbind(approxfun(c(0, 1), c(start[1], end[1]))(incr), approxfun(c(0, 1),
 
 longlat <- gdalraster::transform_xy(track, srs_to = "EPSG:4326", srs_from = "EPSG:3031")
 
-arrow::write_parquet(tibble::tibble(lon = track[,1], lat  = track[,2]), "longlat_points.parquet")
+arrow::write_parquet(tibble::tibble(lon = longlat[,1, drop = TRUE], lat  = longlat[,2, drop = TRUE]), "longlat_points.parquet")
