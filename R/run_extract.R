@@ -1,11 +1,13 @@
 extracted <- file.exists("longlat_points_dem.parquet")
 Sys.setenv("AWS_NO_SIGN_REQUEST" = "YES")  ## shouldn't be necessary, added in desperation during ghactions testing
+
+
 if (!extracted) {
   track <- nanoparquet::read_parquet("longlat_points.parquet")
 library(xml2)
 library(gdalraster)
-dsn <- "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/main/REMA-2m_dem_ovr.vrt"
-##dsn <-  "/vsicurl/https://opentopography.s3.sdsc.edu/raster/COP30/COP30_hh.vrt"
+#dsn <- "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/main/REMA-2m_dem_ovr.vrt"
+dsn <-  "/vsicurl/https://opentopography.s3.sdsc.edu/raster/COP30/COP30_hh.vrt"
 url <- gsub("/vsicurl/", "", dsn)
 xml <- read_xml(url)
 dst <- xml |> xml_find_all(".//DstRect")
@@ -58,29 +60,41 @@ tile <- unlist(lapply(geos::geos_strtree_query(tree, wk::xy(xy[,1, drop = TRUE],
 extract_pt <- function(x) {
   dsn <- x$dsn[1]
   bbox <- x$bbox[[1]]
+  if (x$tile[1] == 0) return(rep(NA_real_, length(x$X)))
   pts <- cbind(x$X, x$Y)
   tf <- tempfile(fileext = ".vrt")
-  #bbbbb <- paste0(bbox, collapse = ",")
-  #dsn <- glue::glue("vrt://{dsn}?projwin={bbbbb}")
+
   translate(dsn, tf, cl_arg = c("-projwin", unname(bbox[c(1, 4, 3, 2)])), quiet = TRUE)
-  pixel_extract(new(GDALRaster, tf), pts)
+  ds <- new(GDALRaster, tf)
+  on.exit(ds$close(), add = TRUE)
+  pixel_extract(ds, pts)
 }
 
 
 v <- vector("list", length(unique(tile)))
 ## create the payload
 for (i in seq_along(v)) {
-  tib <- tibble::tibble(dsn = dsn, X = xy[tile == unique(tile)[i],1 , drop = TRUE],
-                        Y = xy[tile == unique(tile)[i],2 , drop = TRUE],
-                        bbox = list(bb[unique(tile)[i],, drop = TRUE]))
+  tile_index <- unique(tile)[i]
+  X <- xy[!is.na(tile) & tile == tile_index,1 , drop = TRUE]
+  Y <- xy[!is.na(tile) & tile == tile_index,2 , drop = TRUE]
+  ## when we don't have a tile call it zero
+  if (is.na(tile_index)) {
+    tile_index <- 0
+    Y <- X <- rep(NA, sum(is.na(tile)))
+    print(sum(is.na(tile)))
+  }
+  tib <- tibble::tibble(dsn = dsn, X = X,
+                        Y = Y,
+                        bbox = list(bb[tile_index,, drop = TRUE]),
+                        tile = tile_index)
   v[[i]] <- tib
 }
 
 options(parallelly.fork.enable = TRUE, future.rng.onMisuse = "ignore")
-library(furrr); plan(multicore)
-
+library(furrr);
+plan(multicore)
 v1 <- future_map(v, extract_pt)
-
+plan(sequential)
 
 # for (i in seq_along(v)) {
 #   v[[i]] <- extract_pt(dsn, bb[unique(tile)[i],, drop = TRUE], xy[tile == unique(tile)[i], , drop = FALSE])
